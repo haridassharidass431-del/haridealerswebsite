@@ -31,10 +31,8 @@ function constantTimeEquals(left: string, right: string) {
 }
 
 export function verifyAdminCredentials(username: string, password: string) {
-  const expectedUsername = process.env.ADMIN_USERNAME
-    || (process.env.NODE_ENV === 'development' ? 'haridealers' : '');
-  const expectedPassword = process.env.ADMIN_PASSWORD
-    || (process.env.NODE_ENV === 'development' ? 'hari@2007' : '');
+  const expectedUsername = process.env.ADMIN_USERNAME || '';
+  const expectedPassword = process.env.ADMIN_PASSWORD || '';
 
   return Boolean(
     expectedUsername &&
