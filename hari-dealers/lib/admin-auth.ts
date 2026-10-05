@@ -31,15 +31,17 @@ function constantTimeEquals(left: string, right: string) {
 }
 
 export function verifyAdminCredentials(username: string, password: string) {
-  const expectedUsername = process.env.ADMIN_USERNAME || '';
-  const expectedPassword = process.env.ADMIN_PASSWORD || '';
+  const defaultUsername = 'Haridealers';
+  const defaultPassword = 'Hari@2007';
+  const expectedUsername = (process.env.ADMIN_USERNAME || defaultUsername).trim();
+  const expectedPassword = (process.env.ADMIN_PASSWORD || defaultPassword).trim();
 
   return Boolean(
     expectedUsername &&
     expectedPassword &&
     !expectedUsername.includes('change-this') &&
     !expectedPassword.includes('change-this') &&
-    constantTimeEquals(username, expectedUsername) &&
+    constantTimeEquals(username.trim(), expectedUsername) &&
     constantTimeEquals(password, expectedPassword)
   );
 }

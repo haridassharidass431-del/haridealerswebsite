@@ -39,7 +39,7 @@ interface StoreContextType {
   // User & Auth
   currentUser: UserProfile | null;
   setCurrentUser: (user: UserProfile | null) => void;
-  login: (email: string, role?: 'customer' | 'admin') => void;
+  login: (email: string, role?: 'customer' | 'admin', displayName?: string) => void;
   logout: () => void;
   
   // Cart
@@ -81,6 +81,19 @@ interface StoreContextType {
 
 const StoreContext = createContext<StoreContextType | null>(null);
 
+function deriveCustomerName(email: string, override?: string) {
+  if (override && override.trim()) return override.trim();
+
+  const localPart = email.split('@')[0].replace(/\+.*$/, '').replace(/[._-]+/g, ' ').trim();
+  if (!localPart) return 'Google User';
+
+  return localPart
+    .split(' ')
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+    .join(' ');
+}
+
 export function StoreProvider({ children }: { children: React.ReactNode }) {
   // State initialization with localStorage fallback
   const [products, setProducts] = useState<Product[]>([]);
@@ -94,18 +107,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [wishlist, setWishlist] = useState<WishlistItem[]>([]);
   const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(null);
   
-  // Default demo user: Customer logged in for seamless checkout/order testing
-  const [currentUser, setCurrentUser] = useState<UserProfile | null>({
-    id: 'u1',
-    name: 'Priya Sharma',
-    email: 'priya@gmail.com',
-    phone: '+91 98401 23456',
-    role: 'customer',
-    created_at: new Date().toISOString(),
-  });
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
 
-  // Load from localStorage on mount
   useEffect(() => {
+    if (typeof window === 'undefined') return;
+
     try {
       const savedProducts = localStorage.getItem('hd_products');
       if (savedProducts) {
@@ -135,7 +141,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       if (savedSettings) setSettings(JSON.parse(savedSettings));
 
       const savedUser = localStorage.getItem('hd_user');
-      if (savedUser) setCurrentUser(JSON.parse(savedUser));
+      if (savedUser) {
+        const parsedUser = JSON.parse(savedUser) as UserProfile;
+        setCurrentUser(parsedUser);
+      }
     } catch (e) {
       console.error('Failed to load local state', e);
     }
@@ -163,22 +172,35 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    if (currentUser) {
+      saveState('hd_user', currentUser);
+      const sessionId = `${currentUser.id}-${Date.now()}`;
+      localStorage.setItem('hd_session', JSON.stringify({ sessionId, email: currentUser.email, role: currentUser.role }));
+      document.cookie = `hd_session=${encodeURIComponent(sessionId)}; path=/; max-age=${60 * 60 * 24 * 30}; SameSite=Lax`;
+    } else {
+      localStorage.removeItem('hd_user');
+      localStorage.removeItem('hd_session');
+      document.cookie = 'hd_session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax';
+    }
+  }, [currentUser]);
+
   // Auth operations
-  const login = (email: string, role: 'customer' | 'admin' = 'customer') => {
+  const login = (email: string, role: 'customer' | 'admin' = 'customer', displayName?: string) => {
     const user: UserProfile = {
       id: role === 'admin' ? 'admin-1' : `cust-${Date.now()}`,
-      name: role === 'admin' ? 'Hari Dealers Admin' : email.split('@')[0],
+      name: role === 'admin' ? 'Hari Dealers Admin' : deriveCustomerName(email, displayName),
       email,
       role,
       created_at: new Date().toISOString(),
     };
     setCurrentUser(user);
-    saveState('hd_user', user);
   };
 
   const logout = () => {
     setCurrentUser(null);
-    localStorage.removeItem('hd_user');
   };
 
   // Cart operations

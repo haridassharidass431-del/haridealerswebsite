@@ -76,6 +76,12 @@ export default function ProductDetailsPage({ params }: { params: { slug: string 
 
   const handleBuyNow = () => {
     if (isOutOfStock) return;
+    if (!currentUser) {
+      error('Please sign in with your Google account before buying.');
+      router.push('/login?redirect=/checkout');
+      return;
+    }
+
     const added = addToCart(product, selectedSize, activeColor, quantity);
     if (added) {
       router.push('/checkout');

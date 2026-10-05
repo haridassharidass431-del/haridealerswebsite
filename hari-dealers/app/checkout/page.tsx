@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
@@ -22,6 +22,13 @@ export default function CheckoutPage() {
   const [loading, setLoading] = useState(false);
   const [mockRazorpayOpen, setMockRazorpayOpen] = useState(false);
   const [pendingOrderDetails, setPendingOrderDetails] = useState<any>(null);
+
+  useEffect(() => {
+    if (!currentUser) {
+      error('Please sign in with your Google account before placing an order.');
+      router.push('/login?redirect=/checkout');
+    }
+  }, [currentUser, error, router]);
 
   // Form Fields
   const [formData, setFormData] = useState({
@@ -52,6 +59,22 @@ export default function CheckoutPage() {
   }
 
   const finalTotal = Math.max(0, cartSubtotal - couponDiscount + deliveryCharge);
+
+  if (!currentUser) {
+    return (
+      <div className="bg-ivory min-h-[60vh] flex flex-col items-center justify-center p-6 text-center">
+        <h2 className="font-serif text-2xl font-bold text-charcoal-900">Login required to checkout</h2>
+        <p className="text-sm text-charcoal-600 mt-2">Please sign in with your Google account to place an order.</p>
+        <button
+          type="button"
+          onClick={() => router.push('/login?redirect=/checkout')}
+          className="mt-6 px-6 py-2.5 rounded-xl bg-burgundy-950 text-gold-300 font-bold text-xs uppercase tracking-wider"
+        >
+          Continue to Login
+        </button>
+      </div>
+    );
+  }
 
   if (cart.length === 0) {
     return (
