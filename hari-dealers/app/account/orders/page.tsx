@@ -12,9 +12,7 @@ export default function MyOrdersPage() {
   const [selectedFilter, setSelectedFilter] = useState<string>('all');
 
   // Filter orders for the user
-  const userOrders = orders.filter(
-    (o) => !currentUser?.id || o.user_id === currentUser.id || o.customer_email === currentUser?.email
-  );
+  const userOrders = currentUser ? orders.filter((o) => o.user_id === currentUser.id) : [];
 
   const filteredOrders = userOrders.filter((o) => {
     if (selectedFilter === 'all') return true;

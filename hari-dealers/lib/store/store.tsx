@@ -6,6 +6,7 @@ import {
   Review, AdminSettings, OfferBanner, UserProfile, OrderStatus, PaymentStatus 
 } from '@/types';
 import { calculateCheckoutOrder } from '@/lib/validation/checkout';
+import { supabase } from '@/lib/supabase/client';
 
 import { 
   STORE_CATEGORIES,
@@ -13,7 +14,6 @@ import {
   INITIAL_COUPONS,
   INITIAL_SETTINGS,
   INITIAL_REVIEWS,
-  INITIAL_ORDERS,
 } from '@/lib/data/initialData';
 
 export {
@@ -22,7 +22,6 @@ export {
   INITIAL_COUPONS,
   INITIAL_SETTINGS,
   INITIAL_REVIEWS,
-  INITIAL_ORDERS,
 };
 
 // --- STORE CONTEXT INTERFACE ---
@@ -39,7 +38,6 @@ interface StoreContextType {
   // User & Auth
   currentUser: UserProfile | null;
   setCurrentUser: (user: UserProfile | null) => void;
-  login: (email: string, role?: 'customer' | 'admin', displayName?: string) => void;
   logout: () => void;
   
   // Cart
@@ -62,6 +60,7 @@ interface StoreContextType {
 
   // Order Operations
   createOrder: (orderData: Partial<Order>) => Order;
+  refreshOrders: () => Promise<void>;
   cancelOrder: (orderId: string, reason: string) => boolean;
   requestReturn: (orderId: string, reason: string) => boolean;
   updateOrderStatus: (orderId: string, status: OrderStatus, notes?: string, tracking?: { courier_name?: string; tracking_number?: string; tracking_url?: string }) => void;
@@ -70,6 +69,7 @@ interface StoreContextType {
   addProduct: (product: Omit<Product, 'id' | 'created_at'>) => Promise<void>;
   updateProduct: (id: string, updates: Partial<Product>) => Promise<void>;
   deleteProduct: (id: string) => Promise<void>;
+  refreshCatalog: () => Promise<void>;
   updateOfferBanner: (updates: Partial<OfferBanner>) => void;
   addCoupon: (coupon: Omit<Coupon, 'id'>) => void;
   updateCoupon: (id: string, updates: Partial<Coupon>) => void;
@@ -81,19 +81,6 @@ interface StoreContextType {
 
 const StoreContext = createContext<StoreContextType | null>(null);
 
-function deriveCustomerName(email: string, override?: string) {
-  if (override && override.trim()) return override.trim();
-
-  const localPart = email.split('@')[0].replace(/\+.*$/, '').replace(/[._-]+/g, ' ').trim();
-  if (!localPart) return 'Google User';
-
-  return localPart
-    .split(' ')
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
-    .join(' ');
-}
-
 export function StoreProvider({ children }: { children: React.ReactNode }) {
   // State initialization with localStorage fallback
   const [products, setProducts] = useState<Product[]>([]);
@@ -102,7 +89,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [coupons, setCoupons] = useState<Coupon[]>(INITIAL_COUPONS);
   const [reviews, setReviews] = useState<Review[]>(INITIAL_REVIEWS);
   const [settings, setSettings] = useState<AdminSettings>(INITIAL_SETTINGS);
-  const [orders, setOrders] = useState<Order[]>(INITIAL_ORDERS);
+  const [orders, setOrders] = useState<Order[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [wishlist, setWishlist] = useState<WishlistItem[]>([]);
   const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(null);
@@ -119,8 +106,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         setProducts(localProducts.filter((product) => product.is_admin_uploaded === true));
       }
 
-      const savedOrders = localStorage.getItem('hd_orders');
-      if (savedOrders) setOrders(JSON.parse(savedOrders));
+      localStorage.removeItem('hd_orders');
 
       const savedCart = localStorage.getItem('hd_cart');
       if (savedCart) {
@@ -140,11 +126,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       const savedSettings = localStorage.getItem('hd_settings');
       if (savedSettings) setSettings(JSON.parse(savedSettings));
 
-      const savedUser = localStorage.getItem('hd_user');
-      if (savedUser) {
-        const parsedUser = JSON.parse(savedUser) as UserProfile;
-        setCurrentUser(parsedUser);
-      }
+      // A browser-saved profile is not proof of identity. Restore customers only
+      // from the Supabase Auth session below.
+      localStorage.removeItem('hd_user');
     } catch (e) {
       console.error('Failed to load local state', e);
     }
@@ -163,6 +147,52 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       });
   }, []);
 
+  useEffect(() => {
+    if (!supabase) return;
+    const applyAuthUser = async (authUser: import('@supabase/supabase-js').User | null, accessToken?: string) => {
+      if (!authUser) {
+        setCurrentUser(null);
+        setOrders([]);
+        return;
+      }
+      const metadata = authUser.user_metadata || {};
+      setCurrentUser({
+        id: authUser.id,
+        name: metadata.full_name || metadata.name || authUser.email?.split('@')[0] || 'Google User',
+        email: authUser.email || '',
+        phone: metadata.phone,
+        role: 'customer',
+        avatar_url: metadata.avatar_url || metadata.picture,
+        created_at: authUser.created_at,
+      });
+      if (accessToken) {
+        const response = await fetch('/api/orders', { headers: { Authorization: `Bearer ${accessToken}` } });
+        if (response.ok) {
+          const result = await response.json();
+          setOrders((result.orders || []).map((order: any) => ({
+            ...order,
+            items: order.order_items || [],
+            history: order.order_status_history || [],
+          })));
+        }
+      }
+    };
+    void supabase.auth.getSession().then(({ data }) => applyAuthUser(data.session?.user || null, data.session?.access_token));
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      void applyAuthUser(session?.user || null, session?.access_token);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    void fetch('/api/admin/orders')
+      .then(async (response) => response.ok ? response.json() : null)
+      .then((result) => {
+        if (result?.orders) setOrders(result.orders.map((order: any) => ({ ...order, items: order.order_items || [], history: order.order_status_history || [] })));
+      })
+      .catch(() => undefined);
+  }, []);
+
   // Save changes to localStorage
   const saveState = (key: string, data: any) => {
     try {
@@ -175,32 +205,27 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    if (currentUser) {
-      saveState('hd_user', currentUser);
-      const sessionId = `${currentUser.id}-${Date.now()}`;
-      localStorage.setItem('hd_session', JSON.stringify({ sessionId, email: currentUser.email, role: currentUser.role }));
-      document.cookie = `hd_session=${encodeURIComponent(sessionId)}; path=/; max-age=${60 * 60 * 24 * 30}; SameSite=Lax`;
-    } else {
-      localStorage.removeItem('hd_user');
-      localStorage.removeItem('hd_session');
-      document.cookie = 'hd_session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax';
-    }
+    localStorage.removeItem('hd_user');
+    localStorage.removeItem('hd_session');
+    document.cookie = 'hd_session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax';
   }, [currentUser]);
-
-  // Auth operations
-  const login = (email: string, role: 'customer' | 'admin' = 'customer', displayName?: string) => {
-    const user: UserProfile = {
-      id: role === 'admin' ? 'admin-1' : `cust-${Date.now()}`,
-      name: role === 'admin' ? 'Hari Dealers Admin' : deriveCustomerName(email, displayName),
-      email,
-      role,
-      created_at: new Date().toISOString(),
-    };
-    setCurrentUser(user);
-  };
 
   const logout = () => {
     setCurrentUser(null);
+    void supabase?.auth.signOut();
+  };
+
+  const refreshOrders = async () => {
+    const { data: { session } } = await supabase?.auth.getSession() || { data: { session: null } };
+    if (!session?.access_token) return;
+    const response = await fetch('/api/orders', { headers: { Authorization: `Bearer ${session.access_token}` } });
+    if (!response.ok) return;
+    const result = await response.json();
+    setOrders((result.orders || []).map((order: any) => ({
+      ...order,
+      items: order.order_items || [],
+      history: order.order_status_history || [],
+    })));
   };
 
   // Cart operations
@@ -474,6 +499,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     notes?: string, 
     tracking?: { courier_name?: string; tracking_number?: string; tracking_url?: string }
   ) => {
+    const existingOrder = orders.find((ord) => ord.id === orderId || ord.order_number === orderId);
+    if (existingOrder) {
+      void fetch('/api/admin/orders', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ order_number: existingOrder.order_number, status, notes, tracking }),
+      }).catch((err) => console.error('Failed to save order status:', err));
+    }
     setOrders((prev) => {
       const updated = prev.map((ord) => {
         if (ord.id === orderId || ord.order_number === orderId) {
@@ -612,7 +645,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         orders,
         currentUser,
         setCurrentUser,
-        login,
         logout,
         cart,
         cartCount,
@@ -629,12 +661,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         toggleWishlist,
         isInWishlist,
         createOrder,
+        refreshOrders,
         cancelOrder,
         requestReturn,
         updateOrderStatus,
         addProduct,
         updateProduct,
         deleteProduct,
+        refreshCatalog,
         updateOfferBanner,
         addCoupon,
         updateCoupon,

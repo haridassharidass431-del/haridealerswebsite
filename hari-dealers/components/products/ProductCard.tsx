@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Heart, Eye, ShoppingBag, Star, MessageCircle } from 'lucide-react';
 import { Product } from '@/types';
 import { getProductWhatsAppLink } from '@/lib/whatsapp';
@@ -15,7 +16,8 @@ interface ProductCardProps {
 }
 
 export default function ProductCard({ product }: ProductCardProps) {
-  const { toggleWishlist, isInWishlist, addToCart } = useStore();
+  const router = useRouter();
+  const { toggleWishlist, isInWishlist, addToCart, currentUser } = useStore();
   const { success, error } = useToast();
   
   const [quickViewOpen, setQuickViewOpen] = useState(false);
@@ -39,6 +41,13 @@ export default function ProductCard({ product }: ProductCardProps) {
     const color = product.variants?.[0]?.color || 'Standard';
 
     const added = addToCart(product, size, color, 1);
+    if (!currentUser) {
+      if (added) {
+        error('Please login with Google to place your order.');
+        router.push('/login?redirect=/checkout');
+      }
+      return;
+    }
     if (added) {
       success(`Added "${product.name}" to your shopping bag!`);
     } else {

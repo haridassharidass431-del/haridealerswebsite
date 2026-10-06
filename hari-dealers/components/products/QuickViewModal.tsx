@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { X, Star, ShoppingBag, Check, ShieldCheck, Truck, RotateCcw } from 'lucide-react';
 import { Product } from '@/types';
 import { useStore } from '@/lib/store/store';
@@ -14,7 +15,8 @@ interface QuickViewModalProps {
 }
 
 export default function QuickViewModal({ product, onClose }: QuickViewModalProps) {
-  const { addToCart } = useStore();
+  const router = useRouter();
+  const { addToCart, currentUser } = useStore();
   const { success, error } = useToast();
 
   const [selectedSize, setSelectedSize] = useState<string>('M');
@@ -30,6 +32,14 @@ export default function QuickViewModal({ product, onClose }: QuickViewModalProps
   const handleAddToCart = () => {
     if (isOutOfStock) return;
     const added = addToCart(product, selectedSize, activeColor, 1);
+    if (!currentUser) {
+      if (added) {
+        error('Please login with Google to place your order.');
+        router.push('/login?redirect=/checkout');
+        onClose();
+      }
+      return;
+    }
     if (added) {
       success(`Added "${product.name}" (${selectedSize}) to bag!`);
       onClose();

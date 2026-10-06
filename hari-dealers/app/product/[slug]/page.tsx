@@ -67,6 +67,13 @@ export default function ProductDetailsPage({ params }: { params: { slug: string 
   const handleAddToCart = () => {
     if (isOutOfStock) return;
     const added = addToCart(product, selectedSize, activeColor, quantity);
+    if (!currentUser) {
+      if (added) {
+        error('Please login with Google to place your order.');
+        router.push('/login?redirect=/checkout');
+      }
+      return;
+    }
     if (added) {
       success(`Added ${quantity} &times; "${product.name}" (${selectedSize}) to shopping bag!`);
     } else {

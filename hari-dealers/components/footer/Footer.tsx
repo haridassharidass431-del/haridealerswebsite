@@ -162,15 +162,6 @@ export default function Footer() {
               </div>
             </div>
 
-            <div className="mt-6 pt-4 border-t border-charcoal-800">
-              <Link 
-                href="/admin" 
-                className="text-[11px] text-ivory/40 hover:text-gold-300 transition-colors flex items-center gap-1"
-              >
-                <span>Merchant &amp; Staff Login</span>
-                <span>&rarr;</span>
-              </Link>
-            </div>
           </div>
         </div>
 

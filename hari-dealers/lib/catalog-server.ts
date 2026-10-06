@@ -1,6 +1,5 @@
 import { Category, Product } from '@/types';
 import { getSupabaseAdmin } from '@/lib/supabase/server';
-import { STORE_CATEGORIES } from '@/lib/data/initialData';
 
 type CatalogOptions = { includeInactive?: boolean };
 
@@ -11,7 +10,6 @@ export async function getCatalog({ includeInactive = false }: CatalogOptions = {
   let categoryQuery = supabase
     .from('categories')
     .select('*')
-    .in('slug', STORE_CATEGORIES.map((category) => category.slug))
     .order('display_order');
   if (!includeInactive) {
     categoryQuery = categoryQuery.eq('is_active', true);

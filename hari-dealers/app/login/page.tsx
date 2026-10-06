@@ -1,48 +1,31 @@
 'use client';
 
 import React, { useState } from 'react';
-import Link from 'next/link';
 import Image from 'next/image';
-import { useRouter } from 'next/navigation';
-import { Mail, ArrowRight } from 'lucide-react';
-import { useStore } from '@/lib/store/store';
+import { ArrowRight } from 'lucide-react';
+import { supabase } from '@/lib/supabase/client';
 import { useToast } from '@/components/ui/Toast';
 
 export default function LoginPage() {
-  const router = useRouter();
-  const { login } = useStore();
-  const { success, error } = useToast();
-
-  const [email, setEmail] = useState('');
+  const { error } = useToast();
   const [loading, setLoading] = useState(false);
 
-  const handleGoogleLogin = (e: React.FormEvent) => {
+  const handleGoogleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    const normalized = email.trim();
-    if (!normalized || !/^[^\s@]+@gmail\.com$/i.test(normalized) && !/^[^\s@]+@googlemail\.com$/i.test(normalized)) {
-      error('Please enter a valid Gmail / Google account email.');
+    if (!supabase) {
+      error('Google sign-in is not configured. Add your Supabase URL and anon key, then enable Google in Supabase Auth.');
       return;
     }
-
     setLoading(true);
-
-    const localPart = normalized.split('@')[0].replace(/\+.*$/, '').replace(/[._-]+/g, ' ').trim();
-    const displayName = localPart
-      .split(' ')
-      .filter(Boolean)
-      .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
-      .join(' ') || 'Google User';
-
-    setTimeout(() => {
-      login(normalized, 'customer', displayName);
-      success(`Welcome, ${displayName}!`);
+    const redirectTo = new URLSearchParams(window.location.search).get('redirect') || '/account';
+    const { error: authError } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(redirectTo)}` },
+    });
+    if (authError) {
+      error(authError.message || 'Google sign-in failed. Please try again.');
       setLoading(false);
-      const redirectTo = typeof window !== 'undefined'
-        ? new URLSearchParams(window.location.search).get('redirect') || '/account'
-        : '/account';
-      router.push(redirectTo);
-    }, 300);
+    }
   };
 
   return (
@@ -66,18 +49,9 @@ export default function LoginPage() {
         <form onSubmit={handleGoogleLogin} className="space-y-4">
           <div>
             <label className="text-xs font-bold uppercase tracking-wider text-charcoal-700 block mb-1">
-              Gmail Address
+              Google account
             </label>
-            <div className="relative">
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="yourname@gmail.com"
-                className="w-full text-xs pl-10 pr-4 py-3 rounded-xl border border-sand focus:outline-none focus:border-burgundy-900"
-              />
-              <Mail className="w-4 h-4 text-charcoal-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-            </div>
+            <p className="text-xs text-charcoal-500 rounded-xl border border-sand bg-ivory p-3">Continue securely with your Google account. Your email is confirmed by Google.</p>
           </div>
 
           <button
@@ -91,10 +65,7 @@ export default function LoginPage() {
         </form>
 
         <div className="text-center text-xs text-charcoal-500 pt-2 border-t border-sand">
-          Need a different account?{' '}
-          <Link href="/register" className="font-bold text-burgundy-900 hover:text-gold-600 underline">
-            Create account
-          </Link>
+          You can browse the store without signing in. Login is needed only to place an order.
         </div>
       </div>
     </div>

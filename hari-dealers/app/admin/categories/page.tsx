@@ -8,7 +8,7 @@ import { useToast } from '@/components/ui/Toast';
 import { Category } from '@/types';
 
 export default function AdminCategoriesPage() {
-  const { categories, products } = useStore();
+  const { categories, products, refreshCatalog } = useStore();
   const { success, error } = useToast();
 
   const [modalOpen, setModalOpen] = useState(false);
@@ -27,29 +27,23 @@ export default function AdminCategoriesPage() {
     setModalOpen(true);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.name.trim()) return;
-
-    if (editingCat) {
-      editingCat.name = form.name;
-      editingCat.slug = form.slug || form.name.toLowerCase().replace(/\s+/g, '-');
-      editingCat.description = form.description;
-      editingCat.image_url = form.image_url;
-      success(`Category "${form.name}" updated!`);
-    } else {
-      const newCat: Category = {
-        id: `c-${Date.now()}`,
-        name: form.name,
-        slug: form.slug || form.name.toLowerCase().replace(/\s+/g, '-'),
-        description: form.description,
-        image_url: form.image_url,
-        is_active: true,
-      };
-      categories.push(newCat);
-      success(`Added category "${form.name}"!`);
+    try {
+      const response = await fetch('/api/admin/categories', {
+        method: editingCat ? 'PATCH' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...form, id: editingCat?.id }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Could not save category.');
+      await refreshCatalog();
+      success(`${editingCat ? 'Updated' : 'Added'} category "${form.name}".`);
+      setModalOpen(false);
+    } catch (err: any) {
+      error(err.message || 'Could not save category.');
     }
-    setModalOpen(false);
   };
 
   return (

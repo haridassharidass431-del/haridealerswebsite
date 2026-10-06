@@ -12,10 +12,11 @@ import confetti from 'canvas-confetti';
 import { useStore } from '@/lib/store/store';
 import { useToast } from '@/components/ui/Toast';
 import { PaymentMethod } from '@/types';
+import { supabase } from '@/lib/supabase/client';
 
 export default function CheckoutPage() {
   const router = useRouter();
-  const { cart, cartSubtotal, appliedCoupon, settings, createOrder, currentUser } = useStore();
+  const { cart, cartSubtotal, appliedCoupon, settings, clearCart, currentUser, refreshOrders } = useStore();
   const { success, error } = useToast();
 
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('online');
@@ -32,16 +33,26 @@ export default function CheckoutPage() {
 
   // Form Fields
   const [formData, setFormData] = useState({
-    fullName: currentUser?.name || 'Priya Sharma',
-    email: currentUser?.email || 'priya@gmail.com',
-    phone: currentUser?.phone || '9840123456',
-    addressLine1: 'Flat 402, Royal Palms',
-    addressLine2: 'Anna Nagar West',
-    city: 'Chennai',
-    district: 'Chennai',
-    state: 'Tamil Nadu',
-    pincode: '600040',
+    fullName: currentUser?.name || '',
+    email: currentUser?.email || '',
+    phone: currentUser?.phone || '',
+    addressLine1: '',
+    addressLine2: '',
+    city: '',
+    district: '',
+    state: '',
+    pincode: '',
   });
+
+  useEffect(() => {
+    if (!currentUser) return;
+    setFormData((previous) => ({
+      ...previous,
+      fullName: currentUser.name || previous.fullName,
+      email: currentUser.email || previous.email,
+      phone: currentUser.phone || previous.phone,
+    }));
+  }, [currentUser]);
 
   // Calculate authoritative numbers
   const deliveryCharge = cartSubtotal >= settings.free_delivery_threshold || cartSubtotal === 0 ? 0 : settings.delivery_charge;
@@ -99,13 +110,17 @@ export default function CheckoutPage() {
     e.preventDefault();
 
     // Validate inputs
-    if (!formData.fullName.trim() || !formData.email.trim() || !formData.phone.trim() || !formData.addressLine1.trim() || !formData.city.trim() || !formData.pincode.trim()) {
+    if (!formData.fullName.trim() || !formData.phone.trim() || !formData.addressLine1.trim() || !formData.city.trim() || !formData.state.trim() || !formData.pincode.trim()) {
       error('Please complete all required shipping fields.');
       return;
     }
 
     if (formData.pincode.length !== 6 || !/^\d+$/.test(formData.pincode)) {
       error('Please provide a valid 6-digit Indian Pincode.');
+      return;
+    }
+    if (!/^(?:\+?91)?[6-9]\d{9}$/.test(formData.phone.replace(/[\s()-]/g, ''))) {
+      error('Please provide a valid 10-digit Indian mobile number.');
       return;
     }
 
@@ -124,60 +139,44 @@ export default function CheckoutPage() {
       is_default: true,
     };
 
-    const orderPayload = {
-      customer_name: formData.fullName,
-      customer_email: formData.email,
-      customer_phone: formData.phone,
-      subtotal: cartSubtotal,
-      discount: 0,
-      coupon_code: appliedCoupon?.code,
-      coupon_discount: couponDiscount,
-      delivery_charge: deliveryCharge,
-      total_amount: finalTotal,
-      payment_method: paymentMethod,
-      shipping_address: shippingAddress,
-      items: cart.map((i) => ({
-        id: `oi-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-        order_id: '',
-        product_id: i.product_id,
-        product_name: i.product.name,
-        variant_id: i.variant_id,
-        size: i.size,
-        color: i.color,
-        quantity: i.quantity,
-        unit_price: i.unit_price,
-        total_price: i.total_price,
-        image_url: i.product.images[0] || '/logo.jpg',
-      })),
-    };
-
-    if (paymentMethod === 'cod') {
-      // Direct Cash on Delivery placement
-      try {
-        const order = createOrder({
-          ...orderPayload,
-          payment_status: 'pending',
-        });
-
-        confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
-        success(`Order #${order.order_number} confirmed via Cash on Delivery!`);
-        router.push(`/account/orders/${order.order_number}`);
-      } catch (err) {
-        error('Failed to create order. Please try again.');
-      } finally {
+    try {
+      const { data: { session } } = await supabase?.auth.getSession() || { data: { session: null } };
+      if (!session?.access_token) {
+        error('Please login with Google to place your order.');
+        router.push('/login?redirect=/checkout');
         setLoading(false);
+        return;
       }
-    } else {
+      const orderResponse = await fetch('/api/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({
+          customer_name: formData.fullName,
+          customer_phone: formData.phone,
+          coupon_code: appliedCoupon?.code,
+          payment_method: paymentMethod,
+          shipping_address: shippingAddress,
+          items: cart.map((item) => ({ product_id: item.product_id, variant_id: item.variant_id, size: item.size, color: item.color, quantity: item.quantity })),
+        }),
+      });
+      const orderResult = await orderResponse.json();
+      if (!orderResponse.ok) throw new Error(orderResult.error || 'Could not save your order.');
+      const savedOrder = orderResult.order;
+
+      if (paymentMethod === 'cod') {
+        clearCart();
+        await refreshOrders();
+        confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
+        success(`Order #${savedOrder.order_number} placed successfully!`);
+        router.push(`/account/orders/${savedOrder.order_number}`);
+        return;
+      }
       // Online Payment Flow (Razorpay)
       try {
         const res = await fetch('/api/payment/create-order', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            amount: finalTotal,
-            receipt: `rcpt_${Date.now()}`,
-            notes: { customer_email: formData.email },
-          }),
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+          body: JSON.stringify({ order_number: savedOrder.order_number }),
         });
 
         const data = await res.json();
@@ -203,18 +202,16 @@ export default function CheckoutPage() {
               // Verify signature on server
               const verifyRes = await fetch('/api/payment/verify', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(response),
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+                body: JSON.stringify({ ...response, order_number: savedOrder.order_number }),
               });
               const verifyData = await verifyRes.json();
               if (verifyData.success) {
-                const order = createOrder({
-                  ...orderPayload,
-                  payment_status: 'paid',
-                });
+                clearCart();
+                await refreshOrders();
                 confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } });
-                success(`Payment successful! Order #${order.order_number} confirmed.`);
-                router.push(`/account/orders/${order.order_number}`);
+                success(`Payment successful! Order #${savedOrder.order_number} confirmed.`);
+                router.push(`/account/orders/${savedOrder.order_number}`);
               } else {
                 error('Payment verification failed. Please contact support.');
               }
@@ -231,8 +228,9 @@ export default function CheckoutPage() {
         } else {
           // Graceful simulated gateway modal for interactive previewing
           setPendingOrderDetails({
-            ...orderPayload,
+            ...savedOrder,
             razorpayOrderId: data.orderId,
+            accessToken: session.access_token,
           });
           setMockRazorpayOpen(true);
         }
@@ -240,6 +238,9 @@ export default function CheckoutPage() {
         setLoading(false);
         error('Error contacting payment gateway. Please try again.');
       }
+    } catch (err: any) {
+      setLoading(false);
+      error(err?.message || 'Failed to place your order. Please try again.');
     }
   };
 
@@ -248,7 +249,7 @@ export default function CheckoutPage() {
 
     if (status === 'failed') {
       setMockRazorpayOpen(false);
-      error('Payment was declined or cancelled. Your order was not placed.');
+      error('Payment was declined or cancelled. Your order remains pending payment. Please contact the store for help.');
       return;
     }
 
@@ -259,23 +260,22 @@ export default function CheckoutPage() {
     try {
       const verifyRes = await fetch('/api/payment/verify', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${pendingOrderDetails.accessToken}` },
         body: JSON.stringify({
           razorpay_order_id: pendingOrderDetails.razorpayOrderId || `order_${Date.now()}`,
           razorpay_payment_id: `pay_${Date.now()}`,
           razorpay_signature: `mock_sig_${Date.now()}_verified`,
+          order_number: pendingOrderDetails.order_number,
         }),
       });
 
       const verifyData = await verifyRes.json();
       if (verifyData.success) {
-        const order = createOrder({
-          ...pendingOrderDetails,
-          payment_status: 'paid',
-        });
+        clearCart();
+        await refreshOrders();
         confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } });
-        success(`Payment verified! Order #${order.order_number} has been placed.`);
-        router.push(`/account/orders/${order.order_number}`);
+        success(`Payment verified! Order #${pendingOrderDetails.order_number} has been placed.`);
+        router.push(`/account/orders/${pendingOrderDetails.order_number}`);
       } else {
         error(verifyData.error || 'Payment verification failed.');
       }
@@ -354,9 +354,9 @@ export default function CheckoutPage() {
                     type="email"
                     name="email"
                     required
+                    readOnly
                     value={formData.email}
-                    onChange={handleInputChange}
-                    className="w-full p-3 rounded-xl border border-sand focus:outline-none focus:border-burgundy-900"
+                    className="w-full p-3 rounded-xl border border-sand bg-sand/20 text-charcoal-500"
                   />
                 </div>
 
