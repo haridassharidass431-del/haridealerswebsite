@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { ADMIN_SESSION_COOKIE, createAdminSession, verifyAdminCredentials } from '@/lib/admin-auth';
+import { ADMIN_SESSION_COOKIE, areAdminCredentialsConfigured, createAdminSession, verifyAdminCredentials } from '@/lib/admin-auth';
 
 export const runtime = 'nodejs';
 
 export async function POST(request: NextRequest) {
   if (request.headers.get('origin') && request.headers.get('origin') !== request.nextUrl.origin) {
     return NextResponse.json({ error: 'Unauthorized access' }, { status: 403, headers: { 'Cache-Control': 'no-store' } });
+  }
+  if (!areAdminCredentialsConfigured()) {
+    return NextResponse.json({ error: 'Admin login is not configured. Set ADMIN_USERNAME and ADMIN_PASSWORD in your hosting environment.' }, { status: 503, headers: { 'Cache-Control': 'no-store' } });
   }
   let credentials: { username?: unknown; password?: unknown };
   try {

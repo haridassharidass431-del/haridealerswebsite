@@ -29,6 +29,13 @@ function isPlaceholderCredential(value?: string) {
   return Boolean(value && /change-this|replace-with|your-|placeholder/i.test(value));
 }
 
+export function areAdminCredentialsConfigured() {
+  if (process.env.NODE_ENV !== 'production') return true;
+  const username = process.env.ADMIN_USERNAME?.trim();
+  const password = process.env.ADMIN_PASSWORD?.trim();
+  return Boolean(username && password && !isPlaceholderCredential(username) && !isPlaceholderCredential(password));
+}
+
 export function verifyAdminCredentials(username: string, password: string) {
   const defaultUsername = 'Haridealers';
   const defaultPassword = 'Hari@2007';
@@ -36,10 +43,7 @@ export function verifyAdminCredentials(username: string, password: string) {
   const configuredUsername = process.env.ADMIN_USERNAME?.trim();
   const configuredPassword = process.env.ADMIN_PASSWORD?.trim();
 
-  if (
-    process.env.NODE_ENV === 'production' &&
-    (!configuredUsername || !configuredPassword || isPlaceholderCredential(configuredUsername) || isPlaceholderCredential(configuredPassword))
-  ) return false;
+  if (!areAdminCredentialsConfigured()) return false;
 
   const expectedUsername = isPlaceholderCredential(configuredUsername)
     ? defaultUsername
