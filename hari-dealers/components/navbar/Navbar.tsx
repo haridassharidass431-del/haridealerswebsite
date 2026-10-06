@@ -121,6 +121,7 @@ export default function Navbar() {
               >
                 Shop
               </Link>
+              <Link href="/xerox" className="text-sm font-medium text-ivory/90 hover:text-gold-400 transition-colors tracking-wide">Xerox &amp; Printing</Link>
 
               {/* Categories Dropdown */}
               <div 
@@ -363,6 +364,7 @@ export default function Navbar() {
               >
                 Shop All Collections
               </Link>
+              <Link href="/xerox" onClick={() => setMobileMenuOpen(false)} className="text-base font-medium text-gold-300 py-1">Xerox &amp; Printing</Link>
               <Link
                 href="/shop?filter=new"
                 onClick={() => setMobileMenuOpen(false)}

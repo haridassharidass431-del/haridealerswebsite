@@ -148,6 +148,23 @@ export default function HomePage() {
         </div>
       </section>
 
+      <section className="bg-ivory py-14 sm:py-20">
+        <div className="mx-auto grid max-w-6xl gap-6 px-4 sm:px-6 lg:grid-cols-2">
+          <Link href="/shop" className="group rounded-3xl border border-gold-500/20 bg-white p-8 shadow-sm transition hover:-translate-y-1 hover:shadow-xl sm:p-10">
+            <span className="text-xs font-bold uppercase tracking-[.2em] text-burgundy-800">Find your style</span>
+            <h2 className="mt-3 font-serif text-3xl font-bold text-charcoal-900">Explore Dresses</h2>
+            <p className="mt-3 text-sm text-charcoal-600">Browse the latest clothing collections selected by Hari Dealers.</p>
+            <span className="mt-6 inline-flex rounded-xl bg-burgundy-950 px-5 py-3 text-sm font-bold text-gold-300">Explore Dresses →</span>
+          </Link>
+          <Link href="/xerox" className="group rounded-3xl border border-gold-500/20 bg-gradient-to-br from-burgundy-950 to-burgundy-800 p-8 text-white shadow-sm transition hover:-translate-y-1 hover:shadow-xl sm:p-10">
+            <span className="text-xs font-bold uppercase tracking-[.2em] text-gold-300">Local print service</span>
+            <h2 className="mt-3 font-serif text-3xl font-bold">Xerox &amp; Printing</h2>
+            <p className="mt-3 text-sm text-white/75">Upload a document, select your print options and see the price estimate.</p>
+            <span className="mt-6 inline-flex rounded-xl bg-gold-400 px-5 py-3 text-sm font-bold text-burgundy-950">Start a print request →</span>
+          </Link>
+        </div>
+      </section>
+
       {/* ========================================================
           4. ADMIN-CONTROLLED OFFER BANNER (Near the Top)
       ======================================================== */}

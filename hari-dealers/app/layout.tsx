@@ -6,8 +6,8 @@ import StoreLayoutShell from '@/components/layout/StoreLayoutShell';
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'),
-  title: 'HARI DEALERS | Girls & Boys Fashion Collections',
-  description: 'Explore Girls and Boys collections from Hari Dealers. Shop styles added directly by our team.',
+  title: 'HARI DEALERS | Fashion, Xerox & Printing',
+  description: 'Shop the latest Hari Dealers fashion and request convenient Xerox and printing services.',
   keywords: 'Hari Dealers, Girls Collection, Boys Collection, Tops, Fashion Tops, Shawls, Leggings, Ankle Fit, Palazzo',
   icons: {
     icon: '/logo.jpg',

@@ -3,7 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, Compass, Sparkles, ShoppingBag, User } from 'lucide-react';
+import { Home, Compass, Sparkles, ShoppingBag, User, Printer } from 'lucide-react';
 import { useStore } from '@/lib/store/store';
 
 export default function MobileNav() {
@@ -14,6 +14,7 @@ export default function MobileNav() {
     { label: 'Home', href: '/', icon: Home },
     { label: 'Shop', href: '/shop', icon: Compass },
     { label: 'Offers', href: '/offers', icon: Sparkles, highlight: true },
+    { label: 'Print', href: '/xerox', icon: Printer },
     { label: 'Cart', href: '/cart', icon: ShoppingBag, badge: cartCount },
     { 
       label: 'Account', 

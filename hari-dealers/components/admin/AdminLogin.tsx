@@ -3,13 +3,14 @@
 import React, { useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { LockKeyhole, UserRound } from 'lucide-react';
+import { Eye, EyeOff, LockKeyhole, UserRound } from 'lucide-react';
 
 export default function AdminLogin() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -24,7 +25,7 @@ export default function AdminLogin() {
       });
       const result = await response.json();
       if (!response.ok) {
-        setMessage(result.error || 'Unable to sign in. Please try again.');
+        setMessage(response.status === 401 ? 'Invalid admin credentials' : (result.error || 'Unable to sign in. Please try again.'));
         return;
       }
       window.location.assign('/admin');
@@ -77,13 +78,16 @@ export default function AdminLogin() {
               <LockKeyhole className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-charcoal-500" />
               <input
                 id="admin-password"
-                type="password"
+                type={showPassword ? 'text' : 'password'}
                 autoComplete="current-password"
                 required
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
-                className="w-full rounded-xl bg-charcoal-950 border border-charcoal-700 py-3 pl-10 pr-3 text-sm text-ivory focus:outline-none focus:border-gold-500"
+                className="w-full rounded-xl bg-charcoal-950 border border-charcoal-700 py-3 pl-10 pr-12 text-sm text-ivory focus:outline-none focus:border-gold-500"
               />
+              <button type="button" onClick={() => setShowPassword((visible) => !visible)} aria-label={showPassword ? 'Hide password' : 'Show password'} className="absolute right-3 top-1/2 -translate-y-1/2 rounded p-1 text-charcoal-400 hover:text-ivory">
+                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
             </div>
           </div>
 

@@ -3,17 +3,16 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import { 
   LayoutDashboard, ShoppingBag, FolderTree, Tag, Package, 
   Users, Boxes, CreditCard, Ticket, Star, Settings, Bell, 
-  BarChart3, LogOut, ExternalLink, Menu, X
+  BarChart3, LogOut, ExternalLink, Menu, X, Printer, UserRound
 } from 'lucide-react';
 import { useStore } from '@/lib/store/store';
 
 export default function AdminDashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const router = useRouter();
   const { orders } = useStore();
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [notificationOpen, setNotificationOpen] = useState(false);
@@ -26,11 +25,13 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
     { label: 'Categories', href: '/admin/categories', icon: FolderTree },
     { label: 'Offers & Banners', href: '/admin/offers', icon: Tag },
     { label: 'Orders', href: '/admin/orders', icon: Package, badge: pendingOrdersCount },
+    { label: 'Xerox & Pricing', href: '/admin/xerox', icon: Printer },
     { label: 'Inventory', href: '/admin/inventory', icon: Boxes },
     { label: 'Coupons', href: '/admin/coupons', icon: Ticket },
     { label: 'Reviews', href: '/admin/reviews', icon: Star },
     { label: 'Payments Log', href: '/admin/payments', icon: CreditCard },
     { label: 'Customers', href: '/admin/customers', icon: Users },
+    { label: 'Admin Profile', href: '/admin/profile', icon: UserRound },
     { label: 'Sales Reports', href: '/admin/reports', icon: BarChart3 },
     { label: 'Store Settings', href: '/admin/settings', icon: Settings },
   ];
@@ -39,8 +40,7 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
     try {
       const response = await fetch('/api/admin/logout', { method: 'POST' });
       if (!response.ok) throw new Error('Could not sign out. Please try again.');
-      router.push('/admin');
-      router.refresh();
+      window.location.replace('/admin/login');
     } catch (error) {
       window.alert(error instanceof Error ? error.message : 'Could not sign out. Please try again.');
     }
