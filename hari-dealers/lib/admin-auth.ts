@@ -6,13 +6,9 @@ const SESSION_DURATION_SECONDS = 60 * 60 * 12;
 function getSessionSecret() {
   const secret = process.env.ADMIN_SESSION_SECRET;
   const validSecret = secret && secret.length >= 32 &&
-    !secret.includes('placeholder') &&
-    !secret.includes('replace-with') &&
-    !secret.includes('your-');
-  if (validSecret) return secret;
-  return process.env.NODE_ENV === 'development'
-    ? 'hari-dealers-local-development-session-signing-key'
-    : null;
+    secret !== process.env.SUPABASE_SERVICE_ROLE_KEY &&
+    !/placeholder|replace-with|your-/i.test(secret);
+  return validSecret ? secret : null;
 }
 
 function sign(expiresAt: string, secret: string) {
@@ -30,33 +26,20 @@ function isPlaceholderCredential(value?: string) {
 }
 
 export function areAdminCredentialsConfigured() {
-  if (process.env.NODE_ENV !== 'production') return true;
   const username = process.env.ADMIN_USERNAME?.trim();
-  const password = process.env.ADMIN_PASSWORD?.trim();
+  const password = process.env.ADMIN_PASSWORD;
   return Boolean(username && password && !isPlaceholderCredential(username) && !isPlaceholderCredential(password));
 }
 
 export function verifyAdminCredentials(username: string, password: string) {
-  const defaultUsername = 'Haridealers';
-  const defaultPassword = 'Hari@2007';
-
   const configuredUsername = process.env.ADMIN_USERNAME?.trim();
-  const configuredPassword = process.env.ADMIN_PASSWORD?.trim();
+  const configuredPassword = process.env.ADMIN_PASSWORD;
 
-  if (!areAdminCredentialsConfigured()) return false;
-
-  const expectedUsername = isPlaceholderCredential(configuredUsername)
-    ? defaultUsername
-    : (configuredUsername || defaultUsername);
-  const expectedPassword = isPlaceholderCredential(configuredPassword)
-    ? defaultPassword
-    : (configuredPassword || defaultPassword);
+  if (!areAdminCredentialsConfigured() || !configuredUsername || !configuredPassword) return false;
 
   return Boolean(
-    expectedUsername &&
-    expectedPassword &&
-    constantTimeEquals(username.trim().toLowerCase(), expectedUsername.toLowerCase()) &&
-    constantTimeEquals(password.trim(), expectedPassword.trim())
+    constantTimeEquals(username.trim().toLowerCase(), configuredUsername.toLowerCase()) &&
+    constantTimeEquals(password, configuredPassword)
   );
 }
 
